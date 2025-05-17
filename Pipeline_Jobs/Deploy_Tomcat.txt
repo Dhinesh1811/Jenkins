@@ -1,0 +1,68 @@
+pipeline {
+    agent any
+
+    parameters {
+        choice(name: 'TOMCAT_VERSION', choices: ['9.0.103', '9.0.104', '9.0.105'], description: 'Select Tomcat version')
+        string(name: 'INSTALL_DIR', defaultValue: 'C:\\Tomcat', description: 'Installation directory')
+    }
+    environment {
+        ZIP_NAME = "apache-tomcat-${params.TOMCAT_VERSION}.zip"
+        DOWNLOAD_URL = "https://downloads.apache.org/tomcat/tomcat-9/v${params.TOMCAT_VERSION}/bin/${ZIP_NAME}"
+    }
+
+    stages {
+        stage('Clean Old Installation') {
+            steps {
+                bat """
+                IF EXIST "${params.INSTALL_DIR}" (
+                    echo Deleting existing Tomcat directory...
+                    rmdir /s /q "${params.INSTALL_DIR}"
+                )
+                """
+            }
+        }
+
+        stage('Download Tomcat') {
+            steps {
+                bat """
+                mkdir "${params.INSTALL_DIR}"
+                powershell -Command "Invoke-WebRequest -Uri '${DOWNLOAD_URL}' -OutFile '${params.INSTALL_DIR}\\${ZIP_NAME}'"
+                """
+            }
+        }
+
+        stage('Extract Tomcat') {
+            steps {
+                bat """
+                powershell -Command "Expand-Archive -Path '${params.INSTALL_DIR}\\${ZIP_NAME}' -DestinationPath '${params.INSTALL_DIR}'"
+                """
+            }
+        }
+
+        stage('Rename Folder') {
+            steps {
+                bat """
+                ren "${params.INSTALL_DIR}\\apache-tomcat-${params.TOMCAT_VERSION}" "tomcat"
+                """
+            }
+        }
+
+        stage('Start Tomcat') {
+            steps {
+                bat """
+                cd "${params.INSTALL_DIR}\\tomcat\\bin"
+                startup.bat
+                """
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Tomcat installed and started successfully.'
+        }
+        failure {
+            echo 'Tomcat installation failed.'
+        }
+    }
+}
